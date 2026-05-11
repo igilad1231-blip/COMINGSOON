@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>DebateAi — תכנית v4 · Limit Test Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --panel: #15151f;
+    --panel-2: #1a1a26;
+    --border: #2a2a3a;
+    --text: #e8e8f0;
+    --muted: #888899;
+    --accent: #6ee7ff;
+    --accent-2: #ffd166;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+    --risk: #f87171;
+    --done: #4ade80;
+    --inprog: #6ee7ff;
+    --pending: #555566;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", "Heebo", Arial, sans-serif;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 1.5rem 1.5rem 4rem; }
+  h1 { font-size: 1.9rem; margin: 0 0 .25rem; letter-spacing: -0.02em; }
+  h2 { font-size: 1.25rem; margin: 2.5rem 0 1rem; padding-right: .75rem; border-right: 4px solid var(--accent); }
+  h3 { font-size: 1.05rem; margin: 1rem 0 .5rem; color: var(--accent-2); }
+  .subtitle { color: var(--muted); font-size: .9rem; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    margin: 1rem 0;
+  }
+  .panel-2 { background: var(--panel-2); }
+  .grid { display: grid; gap: 1rem; }
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 800px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } }
+  code { background: rgba(110,231,255,0.08); color: var(--accent); padding: 1px 6px; border-radius: 3px; font-family: Consolas, monospace; direction: ltr; display: inline-block; font-size: .9em; }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  th, td { border-bottom: 1px solid var(--border); padding: .55rem .7rem; text-align: right; vertical-align: top; }
+  th { background: rgba(255,255,255,0.04); color: var(--accent-2); font-weight: 600; }
+  .pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+  .pill-ok { background: rgba(74,222,128,0.15); color: var(--ok); }
+  .pill-warn { background: rgba(251,191,36,0.15); color: var(--warn); }
+  .pill-risk { background: rgba(248,113,113,0.15); color: var(--risk); }
+  .pill-pending { background: rgba(85,85,102,0.3); color: var(--muted); }
+  .ok { color: var(--ok); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  .risk { color: var(--risk); font-weight: 600; }
+
+  /* Progress bar */
+  .progress { background: var(--panel-2); height: 14px; border-radius: 7px; overflow: hidden; margin: .25rem 0; border: 1px solid var(--border); }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--ok)); width: 0; transition: width 1.2s ease-out; }
+
+  /* Status cards */
+  .status-card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: .9rem; cursor: pointer; transition: all .15s; }
+  .status-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .status-card .name { font-size: .85rem; color: var(--muted); }
+  .status-card .val { font-size: 1.1rem; margin-top: .25rem; font-weight: 600; }
+
+  /* SVG diagram */
+  .svg-stage { display: block; width: 100%; height: auto; }
+  .node-rect { fill: var(--panel-2); stroke: var(--border); stroke-width: 1.5; cursor: pointer; transition: all .2s; }
+  .node-rect:hover { fill: var(--panel); stroke: var(--accent); stroke-width: 2; }
+  .node-text { fill: var(--text); font: 13px "Segoe UI", sans-serif; pointer-events: none; }
+  .node-text-sub { fill: var(--muted); font: 11px "Segoe UI", sans-serif; pointer-events: none; }
+  .arrow { stroke: var(--muted); stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+  .arrow-active { stroke: var(--accent); stroke-width: 2.5; }
+  .loop-arc { fill: none; stroke: var(--accent-2); stroke-width: 2; stroke-dasharray: 6,4; animation: dash 8s linear infinite; }
+  @keyframes dash { to { stroke-dashoffset: -200; } }
+
+  /* Tabs */
+  .tabs { display: flex; gap: .25rem; margin-bottom: .75rem; flex-wrap: wrap; }
+  .tab { background: var(--panel-2); border: 1px solid var(--border); color: var(--muted); padding: .4rem .85rem; border-radius: 6px; cursor: pointer; font-size: .85rem; transition: all .15s; }
+  .tab.active { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+  .tab:hover:not(.active) { color: var(--text); border-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* Collapsible milestone */
+  .milestone { background: var(--panel); border: 1px solid var(--border); border-right: 4px solid var(--accent); border-radius: 8px; margin: .75rem 0; overflow: hidden; }
+  .milestone-head { padding: 1rem 1.25rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background .15s; }
+  .milestone-head:hover { background: var(--panel-2); }
+  .milestone-body { padding: 0 1.25rem 1.25rem; display: none; }
+  .milestone.open .milestone-body { display: block; }
+  .milestone .arrow-i { transition: transform .2s; color: var(--muted); }
+  .milestone.open .arrow-i { transform: rotate(90deg); }
+
+  .deleted { color: var(--muted); text-decoration: line-through; }
+  .meta-tag { display: inline-block; background: rgba(255,209,102,0.1); color: var(--accent-2); padding: 1px 8px; border-radius: 4px; font-size: .75rem; margin-right: .35rem; }
+
+  .chart-container { position: relative; height: 280px; }
+  .gauge { display: flex; flex-direction: column; align-items: center; }
+  .gauge-svg { width: 100%; max-width: 200px; }
+
+  .toast { position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%); background: var(--accent); color: var(--bg); padding: .5rem 1rem; border-radius: 6px; font-weight: 600; opacity: 0; transition: opacity .3s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>DebateAi <span style="color:var(--accent)">·</span> תכנית v4</h1>
+  <div class="subtitle">2026-05-11 · Limit Test (Anthropic-observed) · עברית-בלבד · אפס כסף · edge intelligence = חשיבה עילית + שיפור עצמי</div>
+
+  <!-- LIVE PROGRESS -->
+  <div class="panel" style="margin-top: 1.5rem;">
+    <div style="display:flex; justify-content:space-between; align-items:baseline;">
+      <h3 style="margin:0;">התקדמות אבני דרך</h3>
+      <div class="subtitle">לחיצה על אבן דרך פותחת פירוט מלא</div>
+    </div>
+    <div class="progress" style="margin-top:.75rem;"><div class="progress-fill" id="overall-progress"></div></div>
+    <div class="subtitle" id="progress-label" style="text-align:left; margin-top:.25rem;"></div>
+  </div>
+
+  <!-- LIVE COMPONENT STATUS -->
+  <h2>מצב רכיבים — חי</h2>
+  <div class="grid grid-4" id="status-cards"></div>
+
+  <!-- ARCHITECTURE DIAGRAM -->
+  <h2>ארכיטקטורה — זרימת בקשה</h2>
+  <div class="panel">
+    <div class="subtitle" style="margin-bottom:.5rem;">העבר עכבר על רכיב לראות פירוט</div>
+    <svg viewBox="0 0 800 380" class="svg-stage">
+      <defs>
+        <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L9,3 z" fill="#888899"/>
+        </marker>
+      </defs>
+
+      <!-- Browser -->
+      <g class="node" data-info="Next.js 16 + React 19 · RTL · streaming UI · sidebar עם היסטוריה">
+        <rect class="node-rect" x="20" y="20" width="160" height="60" rx="8"/>
+        <text class="node-text" x="100" y="45" text-anchor="middle">דפדפן (UI)</text>
+        <text class="node-text-sub" x="100" y="63" text-anchor="middle">Next.js 16 · React 19 · RTL</text>
+      </g>
+
+      <!-- API route -->
+      <g class="node" data-info="POST /api/debate · יוצר/טוען ויכוח · שומר תור משתמש · מריץ RAG · קורא ל-Ollama · streams חזרה · שומר תור AI">
+        <rect class="node-rect" x="320" y="20" width="200" height="60" rx="8"/>
+        <text class="node-text" x="420" y="45" text-anchor="middle">/api/debate (Server)</text>
+        <text class="node-text-sub" x="420" y="63" text-anchor="middle">orchestrator</text>
+      </g>
+
+      <!-- DB -->
+      <g class="node" data-info="SQLite + sqlite-vec extension. טבלאות: debates, turns, synthesis_moments, lessons, knowledge_chunks. וקטורים: vec_turns, vec_lessons, vec_chunks (768-dim)">
+        <rect class="node-rect" x="100" y="160" width="180" height="60" rx="8"/>
+        <text class="node-text" x="190" y="185" text-anchor="middle">SQLite + sqlite-vec</text>
+        <text class="node-text-sub" x="190" y="203" text-anchor="middle">RAG memory</text>
+      </g>
+
+      <!-- Embeddings -->
+      <g class="node" data-info="Ollama nomic-embed-text · 768 dims · רץ מקומית · embed לכל תור ולכל chunk">
+        <rect class="node-rect" x="320" y="160" width="180" height="60" rx="8"/>
+        <text class="node-text" x="410" y="185" text-anchor="middle">Embeddings (Ollama)</text>
+        <text class="node-text-sub" x="410" y="203" text-anchor="middle">nomic-embed-text</text>
+      </g>
+
+      <!-- LLM -->
+      <g class="node" data-info="Aya Expanse 32B מקומי דרך Ollama. CPU בלבד (GPU AMD לא נתמך). ~2.7 tok/s. עברית מצוינת.">
+        <rect class="node-rect" x="540" y="160" width="200" height="60" rx="8"/>
+        <text class="node-text" x="640" y="185" text-anchor="middle">Aya Expanse 32B</text>
+        <text class="node-text-sub" x="640" y="203" text-anchor="middle">המוח · CPU 100%</text>
+      </g>
+
+      <!-- Self-improvement loop (placeholder, layer 3) -->
+      <g class="node" data-info="עוד לא מומש (שכבה 3): self-critique loop, lessons extraction, strategy evolution, autonomous self-practice">
+        <rect class="node-rect" x="320" y="290" width="200" height="60" rx="8" style="stroke-dasharray:5,3; opacity:.5"/>
+        <text class="node-text" x="420" y="315" text-anchor="middle" style="opacity:.6">Self-Improvement Loop</text>
+        <text class="node-text-sub" x="420" y="333" text-anchor="middle" style="opacity:.6">(שכבה 3 · בהמשך)</text>
+      </g>
+
+      <!-- Arrows -->
+      <path class="arrow arrow-active" d="M180,50 L320,50"/>
+      <text class="node-text-sub" x="250" y="40" text-anchor="middle">POST</text>
+
+      <path class="arrow arrow-active" d="M420,80 L420,160"/>
+      <text class="node-text-sub" x="455" y="120" text-anchor="start">RAG</text>
+
+      <path class="arrow" d="M280,190 L320,190"/>
+      <path class="arrow" d="M500,190 L540,190"/>
+      <path class="arrow arrow-active" d="M420,160 L420,80"/>
+
+      <!-- Streaming arrow back -->
+      <path class="arrow arrow-active" d="M540,260 Q420,330 180,80" style="stroke-dasharray:3,3"/>
+      <text class="node-text-sub" x="350" y="280" text-anchor="middle">stream tokens</text>
+
+      <!-- Loop placeholder arrow -->
+      <path class="loop-arc" d="M420,220 Q420,260 420,290"/>
+    </svg>
+
+    <div id="node-info" class="panel-2 panel" style="margin-top:.75rem; min-height: 60px; font-size:.9rem;">
+      <div class="subtitle">העבר עכבר על רכיב כדי לראות מה הוא עושה</div>
+    </div>
+  </div>
+
+  <!-- MODEL BENCHMARK -->
+  <h2>בנצ'מרק מודלים (חי)</h2>
+  <div class="panel">
+    <div class="tabs">
+      <div class="tab active" data-tab="quality">איכות עברית</div>
+      <div class="tab" data-tab="speed">מהירות tok/s</div>
+      <div class="tab" data-tab="radar">השוואה רב-ממדית</div>
+    </div>
+    <div class="tab-panel active" data-panel="quality">
+      <div class="chart-container"><canvas id="chart-quality"></canvas></div>
+      <div class="subtitle" style="margin-top:.5rem;">ציון 1-10. בדיקה ידנית של יציאה אמיתית: רהיטות, מונחים נכונים, היעדר ערבוב שפות.</div>
+    </div>
+    <div class="tab-panel" data-panel="speed">
+      <div class="chart-container"><canvas id="chart-speed"></canvas></div>
+      <div class="subtitle" style="margin-top:.5rem;">tokens/sec במצב CPU בלבד (Ryzen 7 7800X3D). RX 9070 XT לא מנוצל ע"י Ollama 0.23.</div>
+    </div>
+    <div class="tab-panel" data-panel="radar">
+      <div class="chart-container"><canvas id="chart-radar"></canvas></div>
+      <div class="subtitle" style="margin-top:.5rem;">5 ממדים. גבוה יותר = טוב יותר. עברית · עומק חשיבה · זיהוי כשלים · זיהוי סינתזה · מהירות.</div>
+    </div>
+  </div>
+
+  <!-- SELF-IMPROVEMENT LOOP -->
+  <h2>לולאת השיפור העצמי (Edge Intelligence)</h2>
+  <div class="panel">
+    <div class="subtitle" style="margin-bottom:.75rem;">המנגנון שיגרום ל-DebateAi להשתפר אוטונומית. נבנה בשכבה 3 של אבן דרך 1.</div>
+    <svg viewBox="0 0 700 360" class="svg-stage">
+      <defs>
+        <marker id="arrowhead2" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L9,3 z" fill="#ffd166"/>
+        </marker>
+      </defs>
+      <!-- 6 nodes in a circle -->
+      <g>
+        <circle cx="350" cy="60" r="50" fill="var(--panel-2)" stroke="var(--accent-2)" stroke-width="2"/>
+        <text class="node-text" x="350" y="55" text-anchor="middle">1. ויכוח</text>
+        <text class="node-text-sub" x="350" y="72" text-anchor="middle">user ↔ AI</text>
+      </g>
+      <g>
+        <circle cx="600" cy="180" r="50" fill="var(--panel-2)" stroke="var(--accent-2)" stroke-width="2"/>
+        <text class="node-text" x="600" y="175" text-anchor="middle">2. שמירה</text>
+        <text class="node-text-sub" x="600" y="192" text-anchor="middle">DB + embed</text>
+      </g>
+      <g>
+        <circle cx="500" cy="300" r="50" fill="var(--panel-2)" stroke="var(--accent-2)" stroke-width="2"/>
+        <text class="node-text" x="500" y="295" text-anchor="middle">3. ביקורת</text>
+        <text class="node-text-sub" x="500" y="312" text-anchor="middle">self-score</text>
+      </g>
+      <g>
+        <circle cx="200" cy="300" r="50" fill="var(--panel-2)" stroke="var(--accent-2)" stroke-width="2"/>
+        <text class="node-text" x="200" y="295" text-anchor="middle">4. לקח</text>
+        <text class="node-text-sub" x="200" y="312" text-anchor="middle">extract lesson</text>
+      </g>
+      <g>
+        <circle cx="100" cy="180" r="50" fill="var(--panel-2)" stroke="var(--accent-2)" stroke-width="2"/>
+        <text class="node-text" x="100" y="175" text-anchor="middle">5. אסטרטגיה</text>
+        <text class="node-text-sub" x="100" y="192" text-anchor="middle">update Elo</text>
+      </g>
+      <g>
+        <circle cx="350" cy="180" r="50" fill="var(--panel-2)" stroke="var(--accent-2)" stroke-width="2" style="stroke-dasharray:6,4"/>
+        <text class="node-text" x="350" y="175" text-anchor="middle">6. אימון</text>
+        <text class="node-text-sub" x="350" y="192" text-anchor="middle">self-play</text>
+      </g>
+
+      <!-- Arrows around the cycle -->
+      <path d="M395,75 Q510,90 555,140" class="loop-arc" marker-end="url(#arrowhead2)"/>
+      <path d="M590,225 Q570,275 540,290" class="loop-arc" marker-end="url(#arrowhead2)"/>
+      <path d="M450,310 Q350,330 250,310" class="loop-arc" marker-end="url(#arrowhead2)"/>
+      <path d="M165,275 Q120,250 110,225" class="loop-arc" marker-end="url(#arrowhead2)"/>
+      <path d="M145,160 Q200,90 305,75" class="loop-arc" marker-end="url(#arrowhead2)"/>
+      <path d="M310,180 L150,180" class="loop-arc" marker-end="url(#arrowhead2)" style="opacity:.7"/>
+    </svg>
+  </div>
+
+  <!-- HARDWARE -->
+  <h2>חומרה וניצולת</h2>
+  <div class="grid grid-3">
+    <div class="panel gauge">
+      <div class="subtitle">RAM (31 GB סך הכל)</div>
+      <div style="font-size:1.5rem; margin:.5rem 0;"><span id="ram-used">19</span> / 31 GB</div>
+      <div class="progress" style="width:100%;"><div class="progress-fill" style="background: linear-gradient(90deg, var(--ok), var(--warn));" id="ram-bar"></div></div>
+      <div class="subtitle" style="margin-top:.4rem;">Aya 32B = ~19GB · נשאר ~12GB ל-OS + דפדפן</div>
+    </div>
+    <div class="panel gauge">
+      <div class="subtitle">VRAM (16 GB · RX 9070 XT)</div>
+      <div style="font-size:1.5rem; margin:.5rem 0;"><span class="risk">0</span> / 16 GB</div>
+      <div class="progress"><div class="progress-fill" style="background: var(--risk); width:0%;"></div></div>
+      <div class="subtitle" style="margin-top:.4rem;">Ollama 0.23 לא מזהה RDNA 4. CPU בלבד.</div>
+    </div>
+    <div class="panel gauge">
+      <div class="subtitle">דיסק למודלים (1634 GB פנויים)</div>
+      <div style="font-size:1.5rem; margin:.5rem 0;">~24 / 1634 GB</div>
+      <div class="progress"><div class="progress-fill" style="background:var(--ok); width:1.5%;"></div></div>
+      <div class="subtitle" style="margin-top:.4rem;">Aya 32B (19) + Aya 8B (5) + nomic (0.3)</div>
+    </div>
+  </div>
+
+  <!-- MILESTONES -->
+  <h2>אבני דרך — מפורט</h2>
+
+  <div class="milestone open" data-progress="75">
+    <div class="milestone-head" onclick="toggleMs(this)">
+      <div>
+        <span class="pill pill-warn">בעבודה · ~75%</span>
+        <strong>אבן דרך 1 — המוח (Brain + Self-Improvement)</strong>
+        <span class="meta-tag">3-5 sessions</span><span class="meta-tag">8-20 שעות</span>
+      </div>
+      <span class="arrow-i">›</span>
+    </div>
+    <div class="milestone-body">
+      <h3>שכבות (סדר בנייה)</h3>
+      <ol>
+        <li><span class="ok">✓ הושלם</span> · Debate Engine (core) — Hegelian flow, Aya 32B, מערכת system prompt דו-לשונית</li>
+        <li><span class="ok">✓ הושלם</span> · Persistent Memory — SQLite + סכמה (debates/turns/synthesis_moments/lessons/knowledge_chunks)</li>
+        <li><span class="ok">✓ הושלם</span> · RAG Retrieval — sqlite-vec, embeddings, formatContextBlock <span class="risk">(תוקן באג BigInt — embedding inserts נכשלו בשקט)</span></li>
+        <li><span class="ok">✓ הושלם</span> · API + UI integration — sidebar עם היסטוריה, ויכוח חדש, טעינת ויכוח</li>
+        <li><span class="ok">✓ הושלם</span> · Self-Critique Loop — POST /api/critique/[id], JSON-rubric, lesson נשמר ל-vec_lessons</li>
+        <li><span class="pill pill-pending">ממתין</span> · Strategy Evolution — Elo per topic, אסטרטגיות שמשתפרות</li>
+        <li><span class="ok">✓ הושלם</span> · Knowledge Ingestion — POST /api/ingest, scripts/ingest.py, chunker חכם, פופר טען לבחינה</li>
+        <li><span class="pill pill-pending">ממתין</span> · Autonomous Self-Practice — AI מתאמן נגד עצמו ברקע (היעד הגבוה ביותר)</li>
+      </ol>
+      <p class="subtitle" style="margin-top:.75rem;">אומת: שאילתת "פופר הפרכה מדע" מחזירה 5 chunks מהמסמך + 2 turns + 1 lesson, ממויינים לפי distance. <span class="ok">RAG חי באמת עכשיו.</span></p>
+      <p class="subtitle" style="margin-top:.5rem;"><span class="risk">חשוב</span>: באג קריטי תוקן — node:sqlite חיבר JS numbers כ-REAL ל-vec0, מה שגרם לכל insert של embedding להיכשל בשקט מאז ההתחלה. נדרש <code>BigInt(id)</code>. שווה תיעוד ב-memory.</p>
+    </div>
+  </div>
+
+  <div class="milestone" data-progress="0">
+    <div class="milestone-head" onclick="toggleMs(this)">
+      <div>
+        <span class="pill pill-pending">לא התחיל</span>
+        <strong>אבן דרך 2 — הקול (Voice I/O)</strong>
+        <span class="meta-tag">2-3 sessions</span><span class="meta-tag">6-12 שעות</span>
+      </div>
+      <span class="arrow-i">›</span>
+    </div>
+    <div class="milestone-body">
+      <ul>
+        <li>Whisper Web (WebGPU) — מיקרופון → טקסט · רץ בדפדפן · חינמי</li>
+        <li>Streaming TTS — Windows SAPI / Piper מקומי</li>
+        <li>VAD ל-hands-free</li>
+        <li>Waveform indicator</li>
+      </ul>
+      <p class="subtitle">עברית של Windows TTS בינונית. תוכנית גיבוי: Piper TTS מקומי.</p>
+    </div>
+  </div>
+
+  <div class="milestone" data-progress="0">
+    <div class="milestone-head" onclick="toggleMs(this)">
+      <div>
+        <span class="pill pill-pending">לא התחיל</span>
+        <strong>אבן דרך 3 — הגוף (3D Humanoid Host)</strong>
+        <span class="meta-tag">3-5 sessions</span><span class="meta-tag">9-25 שעות</span>
+      </div>
+      <span class="arrow-i">›</span>
+    </div>
+    <div class="milestone-body">
+      <ul>
+        <li>Three.js + R3F עם תאורת סטודיו</li>
+        <li>אווטאר Ready Player Me (פוטו-ריאליסטי, חינמי)</li>
+        <li>TalkingHead.js — viseme lip-sync</li>
+        <li>הבעות שמשתנות לפי עוצמת הוויכוח</li>
+        <li>Idle loop טבעי (נשימה, מצמוצים)</li>
+      </ul>
+      <p class="subtitle">RX 9070 XT לא יהיה בעיה. סיכון עיקרי: visemes בעברית מקורבים (TalkingHead תוכנן לאנגלית).</p>
+    </div>
+  </div>
+
+  <!-- CHANGE LOG -->
+  <h2>שינויים מ-v3</h2>
+  <ul>
+    <li><span class="deleted">Aya 8B כ-utility model</span> — עזב את הארכיטקטורה. 32B-only לכל המשימות.</li>
+    <li>נוספה לולאת DB + RAG ב-Next.js + sqlite-vec.</li>
+    <li>תוקן באג אינטגרציה: <code>sqlite-vec</code> משתמש ב-<code>import.meta.resolve</code> שלא נתמך ב-Turbopack — עוקפים עם path ידני.</li>
+    <li>נוספו routes: <code>/api/debates</code> (list), <code>/api/debates/[id]</code> (load).</li>
+    <li>UI קיבל sidebar עם היסטוריית ויכוחים + כפתור "ויכוח חדש".</li>
+  </ul>
+
+</div>
+
+<div class="toast" id="toast">copied</div>
+
+<script>
+  // ----- Data -----
+  const components = [
+    {name: "Next.js + UI", val: "online", state: "ok", info: "Next.js 16.2.6 + React 19, Turbopack dev בpornt 3000, RTL, streaming"},
+    {name: "Ollama daemon", val: "11434", state: "ok", info: "Ollama 0.23.1, רץ אוטונומי, API live"},
+    {name: "Aya 32B", val: "loaded", state: "ok", info: "19GB on disk, ~2.7 tok/s on CPU, Hebrew מצוין"},
+    {name: "nomic-embed", val: "loaded", state: "ok", info: "768-dim embeddings, ~270MB"},
+    {name: "SQLite + vec", val: "ready", state: "ok", info: "data/debate.db, sqlite-vec extension loaded"},
+    {name: "RAG retrieval", val: "ready", state: "ok", info: "vec_turns/lessons/chunks, top-K query"},
+    {name: "API /debate", val: "live", state: "ok", info: "POST · streaming · persists user+assistant turns"},
+    {name: "Self-critique", val: "live", state: "ok", info: "POST /api/critique/[id] · JSON rubric · lesson extracted ונשמר ל-vec_lessons · בודק ב-debate #2 (8/10, 7/10)"},
+    {name: "Self-practice", val: "pending", state: "pending", info: "שכבה 8 - autonomous self-improvement"},
+    {name: "Voice I/O", val: "M2", state: "pending", info: "אבן דרך 2"},
+    {name: "3D Humanoid", val: "M3", state: "pending", info: "אבן דרך 3"},
+    {name: "GPU accel", val: "blocked", state: "warn", info: "Ollama 0.23 לא תומך RX 9070 XT (RDNA 4). מקובל לעת עתה."},
+  ];
+
+  // ----- Render status cards -----
+  const cards = document.getElementById("status-cards");
+  components.forEach(c => {
+    const div = document.createElement("div");
+    div.className = "status-card";
+    div.innerHTML = `<div class="name">${c.name}</div><div class="val"><span class="pill pill-${c.state}">${c.val}</span></div>`;
+    div.title = c.info;
+    div.onclick = () => showToast(c.info);
+    cards.appendChild(div);
+  });
+
+  // ----- Overall progress -----
+  const ms = document.querySelectorAll(".milestone");
+  let totalProgress = 0;
+  ms.forEach(m => totalProgress += parseInt(m.dataset.progress || 0, 10));
+  const overall = Math.round(totalProgress / (ms.length * 100) * 100);
+  setTimeout(() => {
+    document.getElementById("overall-progress").style.width = overall + "%";
+    document.getElementById("progress-label").textContent = `סה"כ: ${overall}% מוקדש (1 פעיל, 2 ממתינות)`;
+  }, 200);
+
+  // ----- RAM bar -----
+  setTimeout(() => {
+    const pct = (19 / 31) * 100;
+    document.getElementById("ram-bar").style.width = pct + "%";
+  }, 200);
+
+  // ----- Charts -----
+  Chart.defaults.color = "#888899";
+  Chart.defaults.borderColor = "#2a2a3a";
+  Chart.defaults.font.family = '"Segoe UI", "Heebo", Arial, sans-serif';
+
+  const qualityData = {
+    labels: ["Aya 32B", "Aya 8B", "Qwen 14B", "Qwen 7B"],
+    datasets: [{
+      label: "ציון איכות עברית (1-10)",
+      data: [9.5, 9, 2, 1],
+      backgroundColor: ["#4ade80", "#86efac", "#f87171", "#dc2626"],
+      borderRadius: 6,
+    }]
+  };
+  new Chart(document.getElementById("chart-quality"), {
+    type: "bar",
+    data: qualityData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {legend: {display: false}},
+      scales: {y: {beginAtZero: true, max: 10}}
+    }
+  });
+
+  const speedData = {
+    labels: ["Aya 32B", "Aya 8B", "Qwen 14B", "Qwen 7B"],
+    datasets: [{
+      label: "tokens/sec (CPU only)",
+      data: [2.7, 10.0, 6.2, 11.9],
+      backgroundColor: "#6ee7ff",
+      borderRadius: 6,
+    }]
+  };
+  new Chart(document.getElementById("chart-speed"), {
+    type: "bar",
+    data: speedData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {legend: {display: false}},
+      scales: {y: {beginAtZero: true}}
+    }
+  });
+
+  const radarData = {
+    labels: ["עברית", "עומק חשיבה", "זיהוי כשלים", "זיהוי סינתזה", "מהירות"],
+    datasets: [
+      {
+        label: "Aya 32B",
+        data: [9.5, 9, 8.5, 9, 2.7],
+        backgroundColor: "rgba(74,222,128,0.2)",
+        borderColor: "#4ade80",
+        borderWidth: 2,
+        pointBackgroundColor: "#4ade80",
+      },
+      {
+        label: "Aya 8B",
+        data: [9, 7, 6, 6.5, 8],
+        backgroundColor: "rgba(110,231,255,0.15)",
+        borderColor: "#6ee7ff",
+        borderWidth: 2,
+        pointBackgroundColor: "#6ee7ff",
+      }
+    ]
+  };
+  new Chart(document.getElementById("chart-radar"), {
+    type: "radar",
+    data: radarData,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {r: {min: 0, max: 10, ticks: {backdropColor: "transparent"}, grid: {color: "#2a2a3a"}, angleLines: {color: "#2a2a3a"}}}
+    }
+  });
+
+  // ----- Tabs -----
+  document.querySelectorAll(".tab").forEach(tab => {
+    tab.onclick = () => {
+      const target = tab.dataset.tab;
+      document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === target));
+      document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.dataset.panel === target));
+    };
+  });
+
+  // ----- Architecture node hover -----
+  const nodeInfo = document.getElementById("node-info");
+  document.querySelectorAll(".svg-stage .node").forEach(n => {
+    n.addEventListener("mouseenter", () => {
+      nodeInfo.innerHTML = `<div>${n.dataset.info}</div>`;
+    });
+    n.addEventListener("mouseleave", () => {
+      nodeInfo.innerHTML = `<div class="subtitle">העבר עכבר על רכיב כדי לראות מה הוא עושה</div>`;
+    });
+  });
+
+  // ----- Milestone toggle -----
+  function toggleMs(el) {
+    el.parentElement.classList.toggle("open");
+  }
+  window.toggleMs = toggleMs;
+
+  // ----- Toast -----
+  function showToast(text) {
+    const t = document.getElementById("toast");
+    t.textContent = text;
+    t.classList.add("show");
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => t.classList.remove("show"), 2200);
+  }
+</script>
+</body>
+</html>
