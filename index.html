@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DebateAI — בקרוב</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --panel: #15151f;
+    --panel-2: #1a1a26;
+    --border: #2a2a3a;
+    --text: #e8e8f0;
+    --muted: #888899;
+    --accent: #6ee7ff;
+    --accent-2: #ffd166;
+    --ok: #4ade80;
+    --warn: #fbbf24;
+    --pending: #555566;
+    --red: #ff6b6b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", "Heebo", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 1.5rem 1.5rem 4rem; position: relative; }
+
+  /* Language toggle */
+  .lang-toggle {
+    position: absolute;
+    top: 1.5rem;
+    left: 1.5rem;
+    display: flex;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px;
+    z-index: 10;
+    gap: 2px;
+    direction: ltr;
+  }
+  .lang-toggle button {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    padding: .35rem .85rem;
+    border-radius: 999px;
+    font: inherit;
+    font-size: .78rem;
+    font-weight: 700;
+    transition: all .2s;
+    letter-spacing: .05em;
+  }
+  .lang-toggle button:hover { color: var(--text); }
+  .lang-toggle button.active {
+    background: var(--accent);
+    color: var(--bg);
+  }
+
+  /* RTL / LTR state */
+  body[data-lang="he"] { direction: rtl; }
+  body[data-lang="en"] { direction: ltr; }
+  body[data-lang="en"] .lang-toggle { left: auto; right: 1.5rem; }
+  body[data-lang="en"] h2 { border-right: none; border-left: 4px solid var(--accent); padding-right: 0; padding-left: .75rem; }
+  body[data-lang="en"] .card-status { text-align: left; }
+  body[data-lang="en"] .pct-display { text-align: left; }
+  body[data-lang="en"] input[type=email] { direction: ltr; }
+  body[data-lang="en"] .cce-line { text-align: left !important; }
+
+  /* Show/hide language-specific elements */
+  body[data-lang="he"] [data-en] { display: none !important; }
+  body[data-lang="en"] [data-he] { display: none !important; }
+
+  /* Hero */
+  .hero {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 2rem 1.5rem 1.75rem;
+    margin: 4rem 0 1rem;
+  }
+  .eyebrow {
+    color: var(--accent-2);
+    font-size: .82rem;
+    font-weight: 600;
+    letter-spacing: .08em;
+    margin-bottom: .4rem;
+  }
+  .title {
+    font-size: clamp(2.4rem, 8vw, 4.8rem);
+    font-weight: 700;
+    letter-spacing: -.02em;
+    line-height: 1;
+    margin-bottom: .85rem;
+  }
+  .title span { color: var(--accent); }
+  .vision {
+    color: var(--muted);
+    font-size: clamp(.95rem, 3vw, 1.1rem);
+    max-width: 680px;
+  }
+
+  /* Section heading */
+  h2 {
+    font-size: 1.2rem;
+    border-right: 4px solid var(--accent);
+    padding-right: .75rem;
+    margin: 2.5rem 0 1rem;
+  }
+
+  /* Milestone grid */
+  .grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .card {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    cursor: pointer;
+    transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease, background .25s ease;
+    overflow: hidden;
+  }
+  .card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(600px circle at var(--mx, 50%) var(--my, 50%), rgba(110,231,255,.08), transparent 40%);
+    opacity: 0;
+    transition: opacity .3s ease;
+    pointer-events: none;
+  }
+  .card:hover {
+    transform: translateY(-3px);
+    border-color: var(--accent);
+    box-shadow: 0 8px 24px rgba(110,231,255,.12);
+    background: var(--panel-2);
+  }
+  .card:hover::before { opacity: 1; }
+  .card.expanded { border-color: var(--accent); background: var(--panel-2); }
+  .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: .75rem; margin-bottom: 1rem; position: relative; }
+  .card-label { color: var(--accent-2); font-size: 1rem; font-weight: 700; margin-bottom: .25rem; }
+  .card-status { color: var(--muted); font-size: .85rem; direction: ltr; text-align: right; }
+  .card-detail {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height .4s ease, opacity .3s ease, margin-top .3s ease;
+    color: var(--muted);
+    font-size: .88rem;
+    line-height: 1.6;
+    margin-top: 0;
+    position: relative;
+  }
+  .card.expanded .card-detail {
+    max-height: 400px;
+    opacity: 1;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+  }
+  .card-toggle {
+    color: var(--accent);
+    font-size: .75rem;
+    margin-top: .6rem;
+    text-align: left;
+    direction: ltr;
+    opacity: .6;
+    transition: opacity .2s;
+  }
+  .card:hover .card-toggle { opacity: 1; }
+
+  /* Pill */
+  .pill { display: inline-block; border-radius: 999px; font-size: .75rem; font-weight: 700; padding: 2px 10px; white-space: nowrap; }
+  .pill-warn { background: rgba(251,191,36,.15); color: var(--warn); }
+  .pill-pending { background: rgba(85,85,102,.3); color: var(--muted); }
+
+  /* Progress bar */
+  .progress { background: var(--panel-2); border: 1px solid var(--border); border-radius: 7px; height: 14px; overflow: hidden; position: relative; }
+  .progress-fill { height: 100%; width: 0; transition: width 1.2s ease-out; position: relative; background: transparent; }
+  .progress-fill.active {
+    background: linear-gradient(90deg, transparent, var(--accent), var(--ok), var(--accent), transparent);
+    background-size: 50% 100%;
+    background-repeat: no-repeat;
+    animation: flow 2.5s ease-in-out infinite;
+  }
+  @keyframes flow {
+    0% { background-position: -50% 0; }
+    100% { background-position: 150% 0; }
+  }
+  .pct-display { color: var(--muted); font-size: .8rem; margin-top: .4rem; direction: ltr; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Form */
+  .form-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin-top: 2rem;
+  }
+  .form-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: .75rem; align-items: center; margin-top: 1rem; }
+  @media (max-width: 480px) { .form-row { grid-template-columns: 1fr; } }
+  input[type=email] {
+    width: 100%;
+    min-height: 44px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font: inherit;
+    font-size: 1rem;
+    padding: .7rem .9rem;
+    direction: rtl;
+    outline-color: var(--accent);
+  }
+  input[type=email]::placeholder { color: var(--muted); }
+  button[type=submit] {
+    min-height: 44px;
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 10px;
+    color: var(--bg);
+    cursor: pointer;
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 700;
+    padding: .7rem 1.2rem;
+    white-space: nowrap;
+    transition: opacity .15s;
+  }
+  button[type=submit]:hover { opacity: .85; }
+  .success-msg { color: var(--ok); font-weight: 600; margin-top: .75rem; display: none; }
+</style>
+</head>
+<body data-lang="he">
+<div class="wrap">
+
+  <div class="lang-toggle" role="group" aria-label="Language">
+    <button type="button" data-set-lang="he" class="active">עברית</button>
+    <button type="button" data-set-lang="en">EN</button>
+  </div>
+
+  <div class="hero">
+    <div class="eyebrow">
+      <span data-he>בקרוב</span><span data-en>COMING SOON</span>
+    </div>
+    <h1 class="title">Debate<span>AI</span></h1>
+    <p class="vision">
+      <span data-he>DebateAI הוא שיחה דיאלקטית הגלנית. תזה ואנטיתזה שנפגשות. תכליתו יתר סבלנות ויצירתיות. רעיונות חדשים והרחבת התודעה החשיבתית. דחיפת מחשבת האדם לקיצון.</span><span data-en>DebateAI is a Hegelian dialectical conversation. Thesis and antithesis meet. Its purpose: greater patience and creativity. New ideas and the expansion of cognitive consciousness. Pushing human thought to its extreme.</span>
+    </p>
+    <p class="cce-line" style="color:var(--ok);font-size:clamp(.85rem,2.5vw,1rem);font-weight:700;letter-spacing:.18em;margin-top:1.1rem;direction:ltr;text-align:right;">COLLECTIVE COGNITION ENGINE</p>
+  </div>
+
+  <h2>
+    <span data-he>התקדמות אבני דרך</span><span data-en>Milestone Progress</span>
+  </h2>
+  <div class="grid">
+
+    <div class="card" data-milestone="m1">
+      <div class="card-head">
+        <div>
+          <div class="card-label">
+            <span data-he>M1 · המוח</span><span data-en>M1 · The Mind</span>
+          </div>
+          <div class="card-status">Brain + Self-Improvement</div>
+        </div>
+        <span class="pill pill-warn">
+          <span data-he>בתהליך</span><span data-en>In Progress</span>
+        </span>
+      </div>
+      <div class="progress"><div class="progress-fill active" data-pct="55"></div></div>
+
+      <div class="card-detail">
+        <span data-he><strong style="color:var(--accent-2);">המוח</strong> מחפש את הסדק בטיעון שלך, מציב אנטיתזה שלא חשבת עליה, ודוחק אותך לפינה. סינתזה. ידע חדש. <span style="color:var(--red);font-weight:600;">חשיבה שמתעבה לתבונה שגדולה מסך חלקיה.</span></span><span data-en><strong style="color:var(--accent-2);">The Mind</strong> hunts for the crack in your argument, plants an antithesis you didn't see coming, and drives you into a corner. Synthesis. New knowledge. <span style="color:var(--red);font-weight:600;">Thought condensing into a wisdom greater than the sum of its parts.</span></span>
+      </div>
+      <div class="card-toggle">
+        <span data-he>הצצה פנימה ↓</span><span data-en>Look inside ↓</span>
+      </div>
+    </div>
+
+    <div class="card" data-milestone="m2">
+      <div class="card-head">
+        <div>
+          <div class="card-label">
+            <span data-he>M2 · הקול</span><span data-en>M2 · The Voice</span>
+          </div>
+          <div class="card-status">Voice I/O</div>
+        </div>
+        <span class="pill pill-pending">
+          <span data-he>ממתין</span><span data-en>Pending</span>
+        </span>
+      </div>
+      <div class="progress"><div class="progress-fill" data-pct="0"></div></div>
+
+      <div class="card-detail">
+        <span data-he><strong style="color:var(--accent-2);">הקול</strong> גורם לאינטראקציה להרגיש מוכרת, כשיחת טלפון, וחושף מחשבה שהמקלדת מסתירה. <span style="color:var(--red);font-weight:600;">ממשק הבינה חמוש גם כטקסט־לקול, וגם כקול־לקול.</span></span><span data-en><strong style="color:var(--accent-2);">The Voice</strong> makes the interaction feel familiar, like a phone call, and exposes thought the keyboard hides. <span style="color:var(--red);font-weight:600;">The AI interface is equipped both as text-to-voice, and as voice-to-voice.</span></span>
+      </div>
+      <div class="card-toggle">
+        <span data-he>הצצה פנימה ↓</span><span data-en>Look inside ↓</span>
+      </div>
+    </div>
+
+    <div class="card" data-milestone="m3">
+      <div class="card-head">
+        <div>
+          <div class="card-label">
+            <span data-he>M3 · הגוף</span><span data-en>M3 · The Body</span>
+          </div>
+          <div class="card-status">3D Humanoid Host</div>
+        </div>
+        <span class="pill pill-pending">
+          <span data-he>ממתין</span><span data-en>Pending</span>
+        </span>
+      </div>
+      <div class="progress"><div class="progress-fill" data-pct="0"></div></div>
+
+      <div class="card-detail">
+        <span data-he><strong style="color:var(--accent-2);">הגוף</strong> יאניש את השיחה. הבעות פנים, שפת גוף, ותבנית התנהגות המתפתחת כמספר המשתמשים. <span style="color:var(--red);font-weight:600;">חוויית המשתמש כמשחק שחמט בפארק.</span></span><span data-en><strong style="color:var(--accent-2);">The Body</strong> will humanize the conversation. Facial expressions, body language, and a behavioral pattern that evolves with the number of users. <span style="color:var(--red);font-weight:600;">The user experience as a game of chess in the park.</span></span>
+      </div>
+      <div class="card-toggle">
+        <span data-he>הצצה פנימה ↓</span><span data-en>Look inside ↓</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="form-panel">
+    <h2 style="margin:0 0 .25rem; border:none; padding:0;">
+      <span data-he>רשימת המתנה</span><span data-en>Waitlist</span>
+    </h2>
+    <p style="color:var(--muted);font-size:.9rem;">
+      <span data-he>השאר אימייל ואעדכן אותך כשהגישה נפתחת.</span><span data-en>Leave your email and I'll notify you when access opens.</span>
+    </p>
+    <form id="waitlist-form" action="https://formspree.io/f/mbdwqjqw" method="POST">
+      <div class="form-row">
+        <label for="email" style="position:absolute;left:-9999px;">
+          <span data-he>אימייל</span><span data-en>Email</span>
+        </label>
+        <input id="email" name="email" type="email" required autocomplete="email"
+          data-placeholder-he="האימייל שלך"
+          data-placeholder-en="Your email"
+          placeholder="האימייל שלך">
+        <button type="submit">
+          <span data-he>עדכנו אותי</span><span data-en>Notify me</span>
+        </button>
+      </div>
+    </form>
+    <p class="success-msg" id="success-msg">
+      <span data-he>✓ נרשמת בהצלחה. תעודכן.</span><span data-en>✓ Successfully registered. You'll be notified.</span>
+    </p>
+  </div>
+
+</div>
+
+<script>
+  // Animate progress bars on load
+  window.addEventListener('load', () => {
+    setTimeout(() => {
+      document.querySelectorAll('.progress-fill').forEach(el => {
+        const isActive = el.classList.contains('active');
+        el.style.width = isActive ? '100%' : '0%';
+      });
+    }, 200);
+  });
+
+  // Toggle labels per language
+  const TOGGLE_LABELS = {
+    he: { open: 'הצצה פנימה ↓', close: 'סגור ↑' },
+    en: { open: 'Look inside ↓', close: 'Close ↑' }
+  };
+
+  function setLanguage(lang) {
+    document.body.setAttribute('data-lang', lang);
+    document.documentElement.setAttribute('lang', lang);
+    document.documentElement.setAttribute('dir', lang === 'he' ? 'rtl' : 'ltr');
+    document.title = lang === 'he' ? 'DebateAI — בקרוב' : 'DebateAI — Coming Soon';
+
+    document.querySelectorAll('.lang-toggle button').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.setLang === lang);
+    });
+
+    const emailInput = document.getElementById('email');
+    if (emailInput) {
+      emailInput.placeholder = emailInput.dataset['placeholder' + (lang === 'he' ? 'He' : 'En')];
+    }
+
+    // Sync card toggle labels with current expanded state
+    document.querySelectorAll('.card').forEach(card => {
+      const toggle = card.querySelector('.card-toggle');
+      if (!toggle) return;
+      const isExpanded = card.classList.contains('expanded');
+      const he = toggle.querySelector('[data-he]');
+      const en = toggle.querySelector('[data-en]');
+      if (he) he.textContent = isExpanded ? TOGGLE_LABELS.he.close : TOGGLE_LABELS.he.open;
+      if (en) en.textContent = isExpanded ? TOGGLE_LABELS.en.close : TOGGLE_LABELS.en.open;
+    });
+
+    try { localStorage.setItem('debateai_lang', lang); } catch (e) {}
+  }
+
+  document.querySelectorAll('.lang-toggle button').forEach(btn => {
+    btn.addEventListener('click', () => setLanguage(btn.dataset.setLang));
+  });
+
+  // Restore saved language
+  try {
+    const saved = localStorage.getItem('debateai_lang');
+    if (saved === 'en' || saved === 'he') setLanguage(saved);
+  } catch (e) {}
+
+  // Click to expand cards
+  document.querySelectorAll('.card').forEach(card => {
+    card.addEventListener('click', () => {
+      const wasExpanded = card.classList.contains('expanded');
+
+      // Collapse all and reset their toggle labels
+      document.querySelectorAll('.card').forEach(c => {
+        c.classList.remove('expanded');
+        const t = c.querySelector('.card-toggle');
+        if (t) {
+          const he = t.querySelector('[data-he]');
+          const en = t.querySelector('[data-en]');
+          if (he) he.textContent = TOGGLE_LABELS.he.open;
+          if (en) en.textContent = TOGGLE_LABELS.en.open;
+        }
+      });
+
+      // Expand this one
+      if (!wasExpanded) {
+        card.classList.add('expanded');
+        const toggle = card.querySelector('.card-toggle');
+        if (toggle) {
+          const he = toggle.querySelector('[data-he]');
+          const en = toggle.querySelector('[data-en]');
+          if (he) he.textContent = TOGGLE_LABELS.he.close;
+          if (en) en.textContent = TOGGLE_LABELS.en.close;
+        }
+      }
+    });
+
+    // Mouse glow tracking
+    card.addEventListener('mousemove', (e) => {
+      const rect = card.getBoundingClientRect();
+      card.style.setProperty('--mx', (e.clientX - rect.left) + 'px');
+      card.style.setProperty('--my', (e.clientY - rect.top) + 'px');
+    });
+  });
+
+  // Formspree AJAX submit
+  const form = document.getElementById('waitlist-form');
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button');
+    const lang = document.body.getAttribute('data-lang') || 'he';
+    const labels = {
+      he: { sending: '...', error: 'שגיאה — נסה שוב' },
+      en: { sending: '...', error: 'Error — try again' }
+    };
+    btn.textContent = labels[lang].sending;
+    btn.disabled = true;
+    try {
+      const res = await fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        headers: { 'Accept': 'application/json' }
+      });
+      if (res.ok) {
+        form.style.display = 'none';
+        document.getElementById('success-msg').style.display = 'block';
+      } else {
+        btn.textContent = labels[lang].error;
+        btn.disabled = false;
+      }
+    } catch {
+      btn.textContent = labels[lang].error;
+      btn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
